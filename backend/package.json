@@ -1,0 +1,19 @@
+{
+  "name": "url-shortener-backend",
+  "version": "1.0.0",
+  "description": "Scalable URL shortener API - Base62 encoding, Redis caching, Postgres storage, async analytics pipeline",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "pg": "^8.12.0"
+  }
+}
