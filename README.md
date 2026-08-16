@@ -80,7 +80,7 @@ For a "real" run: set `DATABASE_URL=postgres://...` and
 
 ---
 
-## 4. Step-by-step: how a request flows (what to say in an interview)
+## 4. Step-by-step: how a request flows 
 
 ### Creating a short URL
 1. Client `POST /api/shorten` with `{ longUrl }`.
