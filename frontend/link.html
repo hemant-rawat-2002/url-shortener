@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — Link Analytics</title>
+<style>
+  :root {
+    --ink: #10161f; --paper: #eef1f6; --panel: #ffffff;
+    --wire: #2f6fed; --wire-dim: #cddcfb; --line: #d8dde6;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 28px 28px; min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; }
+  a.back { font-family: var(--mono); font-size: 13px; color: #55606f; text-decoration: none; }
+  a.back:hover { color: var(--wire); }
+
+  .code-badge { font-family: var(--mono); font-size: 13px; color: var(--wire); background: var(--wire-dim); padding: 4px 10px; border-radius: 3px; display: inline-block; margin-bottom: 10px; }
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.02em; word-break: break-all; }
+  .dest-url { font-family: var(--mono); font-size: 13px; color: #55606f; word-break: break-all; }
+
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin: 24px 0; }
+  .stat { background: var(--panel); padding: 20px 22px; }
+  .stat .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--wire); }
+  .stat .value { font-size: 30px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 24px; margin-bottom: 24px; }
+  .panel h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: #55606f; margin: 0 0 18px; font-family: var(--mono); font-weight: 600; }
+  .empty { font-size: 13px; color: #8a94a3; padding: 8px 0; }
+
+  #chart { width: 100%; height: 150px; }
+
+  .ref-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+  .ref-name { width: 160px; flex-shrink: 0; font-family: var(--mono); color: #55606f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ref-bar-track { flex: 1; background: var(--paper); border-radius: 2px; overflow: hidden; height: 10px; }
+  .ref-bar-fill { background: var(--wire); height: 100%; border-radius: 2px; }
+  .ref-count { font-family: var(--mono); width: 30px; text-align: right; font-weight: 600; }
+
+  .loading, .error { font-family: var(--mono); font-size: 13px; color: #8a94a3; }
+  .error { color: #c1362f; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a class="back" href="/dashboard.html">&larr; all links</a>
+      <a class="back" href="/">shorten another &rarr;</a>
+    </div>
+
+    <div id="loadingMsg" class="loading">Loading link details&hellip;</div>
+    <div id="content" style="display:none;">
+      <span class="code-badge" id="codeBadge"></span>
+      <h1 id="destTitle"></h1>
+      <div class="dest-url" id="destUrl"></div>
+
+      <div class="stat-row">
+        <div class="stat"><div class="label">Total Clicks</div><div class="value" id="clickCount">0</div></div>
+        <div class="stat"><div class="label">Created</div><div class="value" id="createdAt" style="font-size:16px;font-weight:600;"></div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Clicks — last 14 days</h2>
+        <div id="chartWrap"><svg id="chart" viewBox="0 0 800 150" preserveAspectRatio="none"></svg></div>
+      </div>
+
+      <div class="panel">
+        <h2>Referrers</h2>
+        <div id="referrerWrap"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const API_BASE = window.location.origin;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderChart(clicksByDay) {
+    const svg = document.getElementById('chart');
+    const width = 800, height = 150, padding = 22;
+    svg.innerHTML = '';
+    if (!clicksByDay.length) {
+      document.getElementById('chartWrap').innerHTML = '<div class="empty">No clicks in the last 14 days yet.</div>';
+      return;
+    }
+    const max = Math.max(...clicksByDay.map(d => d.count), 1);
+    const barWidth = (width - padding * 2) / clicksByDay.length;
+    clicksByDay.forEach((d, i) => {
+      const barHeight = (d.count / max) * (height - padding * 2);
+      const x = padding + i * barWidth;
+      const y = height - padding - barHeight;
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x + barWidth * 0.15);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', barWidth * 0.7);
+      rect.setAttribute('height', Math.max(barHeight, 2));
+      rect.setAttribute('fill', '#2f6fed');
+      rect.setAttribute('rx', '2');
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${d.day}: ${d.count} click${d.count === 1 ? '' : 's'}`;
+      rect.appendChild(title);
+      svg.appendChild(rect);
+    });
+    const baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    baseline.setAttribute('x1', padding); baseline.setAttribute('x2', width - padding);
+    baseline.setAttribute('y1', height - padding); baseline.setAttribute('y2', height - padding);
+    baseline.setAttribute('stroke', '#d8dde6');
+    svg.appendChild(baseline);
+  }
+
+  function renderReferrers(topReferrers) {
+    const wrap = document.getElementById('referrerWrap');
+    if (!topReferrers.length) {
+      wrap.innerHTML = '<div class="empty">No referrer data yet.</div>';
+      return;
+    }
+    const max = Math.max(...topReferrers.map(r => r.count), 1);
+    wrap.innerHTML = topReferrers.map(r => `
+      <div class="ref-row">
+        <div class="ref-name" title="${escapeHtml(r.referrer)}">${escapeHtml(r.referrer)}</div>
+        <div class="ref-bar-track"><div class="ref-bar-fill" style="width:${(r.count / max) * 100}%"></div></div>
+        <div class="ref-count">${r.count}</div>
+      </div>
+    `).join('');
+  }
+
+  async function load() {
+    if (!code) {
+      document.getElementById('loadingMsg').innerHTML = '<span class="error">No short code specified. Go back and pick a link from the dashboard.</span>';
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/urls/${encodeURIComponent(code)}/stats`);
+      if (res.status === 404) {
+        document.getElementById('loadingMsg').innerHTML = '<span class="error">That short code was not found.</span>';
+        return;
+      }
+      const data = await res.json();
+
+      document.getElementById('codeBadge').textContent = `/${data.short_code}`;
+      document.getElementById('destTitle').textContent = data.long_url;
+      document.getElementById('destUrl').textContent = `${API_BASE}/${data.short_code}`;
+      document.getElementById('clickCount').textContent = data.click_count;
+      document.getElementById('createdAt').textContent = new Date(data.created_at).toLocaleDateString();
+
+      renderChart(data.clicksByDay || []);
+      renderReferrers(data.topReferrers || []);
+
+      document.getElementById('loadingMsg').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    } catch (err) {
+      document.getElementById('loadingMsg').innerHTML = `<span class="error">Failed to load: ${escapeHtml(err.message)}</span>`;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

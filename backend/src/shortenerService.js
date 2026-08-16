@@ -103,4 +103,20 @@ async function getStats(shortCode) {
   return db.getStats(shortCode);
 }
 
-module.exports = { shortenUrl, resolveShortCode, getStats, isValidUrl, flushAnalyticsQueue };
+async function getAnalyticsSummary() {
+  return db.getAnalyticsSummary();
+}
+
+async function getLinksByOwner(ownerId) {
+  return db.getLinksByOwner(ownerId);
+}
+
+module.exports = {
+  shortenUrl,
+  resolveShortCode,
+  getStats,
+  getAnalyticsSummary,
+  getLinksByOwner,
+  isValidUrl,
+  flushAnalyticsQueue,
+};

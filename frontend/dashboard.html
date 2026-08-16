@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — Analytics</title>
+<style>
+  :root {
+    --ink: #10161f;
+    --paper: #eef1f6;
+    --panel: #ffffff;
+    --wire: #2f6fed;
+    --wire-dim: #cddcfb;
+    --line: #d8dde6;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 36px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  h1 span { color: var(--wire); }
+  a.back { font-family: var(--mono); font-size: 13px; color: #55606f; text-decoration: none; }
+  a.back:hover { color: var(--wire); }
+
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 28px; }
+  .stat { background: var(--panel); padding: 22px 24px; }
+  .stat .label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--wire); }
+  .stat .value { font-size: 36px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 24px; margin-bottom: 28px; }
+  .panel h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: #55606f; margin: 0 0 18px; font-family: var(--mono); font-weight: 600; }
+
+  #chart { width: 100%; height: 160px; }
+  .chart-empty, .table-empty { font-size: 13px; color: #8a94a3; padding: 12px 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8a94a3; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); }
+  td.code { font-family: var(--mono); color: var(--wire); }
+  td.url { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55606f; }
+  td.count { font-family: var(--mono); text-align: right; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  .loading { font-family: var(--mono); font-size: 13px; color: #8a94a3; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>Click <span>Analytics</span></h1>
+      <a class="back" href="/">&larr; back to shortener</a>
+    </div>
+
+    <div id="loadingMsg" class="loading">Loading analytics&hellip;</div>
+
+    <div id="content" style="display:none;">
+      <div class="stat-row">
+        <div class="stat">
+          <div class="label">Total Links</div>
+          <div class="value" id="totalLinks">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Total Clicks</div>
+          <div class="value" id="totalClicks">0</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Clicks — last 14 days</h2>
+        <div id="chartWrap"><svg id="chart" viewBox="0 0 800 160" preserveAspectRatio="none"></svg></div>
+      </div>
+
+      <div class="panel">
+        <h2>Top Links</h2>
+        <div id="tableWrap"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API_BASE = window.location.origin;
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function renderChart(clicksByDay) {
+    const svg = document.getElementById('chart');
+    const width = 800, height = 160, padding = 24;
+    svg.innerHTML = '';
+
+    if (!clicksByDay.length) {
+      document.getElementById('chartWrap').innerHTML = '<div class="chart-empty">No clicks recorded in the last 14 days yet — click one of your short links to see data here.</div>';
+      return;
+    }
+
+    const max = Math.max(...clicksByDay.map(d => d.count), 1);
+    const barWidth = (width - padding * 2) / clicksByDay.length;
+
+    clicksByDay.forEach((d, i) => {
+      const barHeight = (d.count / max) * (height - padding * 2);
+      const x = padding + i * barWidth;
+      const y = height - padding - barHeight;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x + barWidth * 0.15);
+      rect.setAttribute('y', y);
+      rect.setAttribute('width', barWidth * 0.7);
+      rect.setAttribute('height', Math.max(barHeight, 2));
+      rect.setAttribute('fill', '#2f6fed');
+      rect.setAttribute('rx', '2');
+
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `${d.day}: ${d.count} click${d.count === 1 ? '' : 's'}`;
+      rect.appendChild(title);
+
+      svg.appendChild(rect);
+    });
+
+    const baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    baseline.setAttribute('x1', padding);
+    baseline.setAttribute('x2', width - padding);
+    baseline.setAttribute('y1', height - padding);
+    baseline.setAttribute('y2', height - padding);
+    baseline.setAttribute('stroke', '#d8dde6');
+    svg.appendChild(baseline);
+  }
+
+  function renderTable(topLinks) {
+    const wrap = document.getElementById('tableWrap');
+    if (!topLinks.length) {
+      wrap.innerHTML = '<div class="table-empty">No links created yet.</div>';
+      return;
+    }
+    const rows = topLinks.map(l => `
+      <tr>
+        <td class="code"><a href="/link.html?code=${encodeURIComponent(l.shortCode)}" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--wire-dim);">/${escapeHtml(l.shortCode)}</a></td>
+        <td class="url" title="${escapeHtml(l.longUrl)}">${escapeHtml(l.longUrl)}</td>
+        <td class="count">${l.clickCount}</td>
+      </tr>
+    `).join('');
+    wrap.innerHTML = `
+      <table>
+        <thead><tr><th>Code</th><th>Destination</th><th style="text-align:right">Clicks</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  async function loadAnalytics() {
+    try {
+      const res = await fetch(`${API_BASE}/api/analytics`);
+      const data = await res.json();
+      document.getElementById('totalLinks').textContent = data.totalLinks;
+      document.getElementById('totalClicks').textContent = data.totalClicks;
+      renderChart(data.clicksByDay || []);
+      renderTable(data.topLinks || []);
+      document.getElementById('loadingMsg').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    } catch (err) {
+      document.getElementById('loadingMsg').textContent = 'Could not load analytics: ' + err.message;
+    }
+  }
+
+  loadAnalytics();
+</script>
+</body>
+</html>

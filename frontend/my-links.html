@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — My Links</title>
+<style>
+  :root {
+    --ink: #10161f; --paper: #eef1f6; --panel: #ffffff;
+    --wire: #2f6fed; --wire-dim: #cddcfb; --line: #d8dde6;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 28px 28px; min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+  .topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  h1 { font-size: 28px; margin: 0; letter-spacing: -0.02em; }
+  h1 span { color: var(--wire); }
+  #nav { font-family: var(--mono); font-size: 13px; }
+  #nav a { color: #55606f; text-decoration: none; }
+  #nav a:hover { color: var(--wire); }
+  .sub { font-size: 14px; color: #55606f; margin: 6px 0 28px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8a94a3; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); }
+  td.code a { font-family: var(--mono); color: var(--wire); text-decoration: none; border-bottom: 1px dashed var(--wire-dim); }
+  td.url { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #55606f; }
+  td.count { font-family: var(--mono); text-align: right; font-weight: 600; }
+  td.date { font-family: var(--mono); font-size: 12px; color: #8a94a3; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+
+  .empty-state { text-align: center; padding: 48px 20px; }
+  .empty-state p { color: #55606f; margin-bottom: 18px; }
+  .cta { display: inline-block; background: var(--ink); color: #fff; text-decoration: none; padding: 11px 20px; border-radius: 3px; font-size: 13px; font-weight: 600; }
+  .cta:hover { background: var(--wire); }
+
+  .loading { font-family: var(--mono); font-size: 13px; color: #8a94a3; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <h1>My <span>Links</span></h1>
+      <div id="nav"></div>
+    </div>
+    <div class="sub">Only links created while logged in show up here.</div>
+
+    <div id="loadingMsg" class="loading">Loading&hellip;</div>
+    <div class="panel" id="content" style="display:none;"></div>
+  </div>
+
+<script src="/auth-nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  async function loadMyLinks() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = '/auth.html';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/my-links`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.status === 401) {
+        clearSession();
+        window.location.href = '/auth.html';
+        return;
+      }
+
+      const data = await res.json();
+      const links = data.links || [];
+      const content = document.getElementById('content');
+
+      if (!links.length) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <p>You haven't created any links yet while logged in.</p>
+            <a class="cta" href="/">Shorten your first link &rarr;</a>
+          </div>`;
+      } else {
+        const rows = links.map(l => `
+          <tr>
+            <td class="code"><a href="/link.html?code=${encodeURIComponent(l.shortCode)}">/${escapeHtml(l.shortCode)}</a></td>
+            <td class="url" title="${escapeHtml(l.longUrl)}">${escapeHtml(l.longUrl)}</td>
+            <td class="count">${l.clickCount}</td>
+            <td class="date">${new Date(l.createdAt).toLocaleDateString()}</td>
+          </tr>
+        `).join('');
+        content.innerHTML = `
+          <table>
+            <thead><tr><th>Code</th><th>Destination</th><th style="text-align:right">Clicks</th><th>Created</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      }
+
+      document.getElementById('loadingMsg').style.display = 'none';
+      content.style.display = 'block';
+    } catch (err) {
+      document.getElementById('loadingMsg').textContent = 'Failed to load: ' + err.message;
+    }
+  }
+
+  renderNav('nav');
+  loadMyLinks();
+</script>
+</body>
+</html>

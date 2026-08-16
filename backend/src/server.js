@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./db');
 const urlRoutes = require('./routes/urls');
+const authRoutes = require('./auth/routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,9 +42,16 @@ function rateLimit({ windowMs = 60_000, max = 30 } = {}) {
 }
 
 app.use('/api/shorten', rateLimit({ windowMs: 60_000, max: 30 }));
+// Tighter limit on auth — these endpoints are the classic brute-force /
+// credential-stuffing target, so they get a stricter budget than shorten.
+app.use('/api/auth', rateLimit({ windowMs: 60_000, max: 10 }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+// Mounted before urlRoutes: urlRoutes ends with a catch-all GET /:code for
+// redirects, so anything meant to be its own route must be registered
+// ahead of that router, not after.
+app.use('/', authRoutes);
 app.use('/', urlRoutes);
 
 // Centralized error handler

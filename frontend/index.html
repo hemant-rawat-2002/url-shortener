@@ -144,14 +144,20 @@
   .cell .v { font-size: 13px; color: #55606f; margin-top: 6px; line-height: 1.45; }
 
   footer { margin-top: 56px; font-family: var(--mono); font-size: 12px; color: #96a0af; }
+  #nav a { color: var(--wire); text-decoration: none; }
+  #nav a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="eyebrow">base62 · redis-cached · postgres-backed</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="eyebrow">base62 · redis-cached · postgres-backed</div>
+        <div id="nav" style="font-family:var(--mono);font-size:13px;"></div>
+      </div>
       <h1>Turn long links into <span>short</span>, fast ones.</h1>
       <p class="lede">Paste a URL below. It's stored, base62-encoded, and served through a cache-aside layer built for high-throughput redirects.</p>
+      <p style="margin-top:14px;"><a href="/dashboard.html" style="font-family:var(--mono);font-size:13px;color:var(--wire);text-decoration:none;">view click analytics &rarr;</a></p>
     </header>
 
     <div class="panel">
@@ -166,7 +172,10 @@
           <a id="shortLink" href="#" target="_blank" rel="noopener"></a>
           <button class="copy-btn" id="copyBtn">Copy</button>
         </div>
-        <div class="meta" id="metaBox"></div>
+        <div class="meta">
+          <span id="metaBox"></span>
+          &nbsp;·&nbsp;<a id="statsLink" href="#" style="color:var(--wire);">view stats &rarr;</a>
+        </div>
       </div>
     </div>
 
@@ -188,6 +197,7 @@
     <footer>backend: node · express · postgres · redis</footer>
   </div>
 
+<script src="/auth-nav.js"></script>
 <script>
   const API_BASE = window.location.origin; // same host as backend when served together
 
@@ -197,6 +207,7 @@
   const errorBox = document.getElementById('errorBox');
   const shortLink = document.getElementById('shortLink');
   const metaBox = document.getElementById('metaBox');
+  const statsLink = document.getElementById('statsLink');
   const copyBtn = document.getElementById('copyBtn');
 
   async function shorten() {
@@ -209,9 +220,13 @@
     btn.disabled = true;
     btn.textContent = 'Shortening…';
     try {
+      const token = getToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`${API_BASE}/api/shorten`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ longUrl }),
       });
       const data = await res.json();
@@ -220,6 +235,7 @@
       shortLink.href = data.shortUrl;
       shortLink.textContent = data.shortUrl;
       metaBox.textContent = `code: ${data.shortCode}  ·  created: ${new Date(data.createdAt).toLocaleString()}`;
+      statsLink.href = `/link.html?code=${encodeURIComponent(data.shortCode)}`;
       resultBox.classList.add('show');
     } catch (err) {
       errorBox.textContent = err.message;
@@ -238,6 +254,8 @@
     copyBtn.textContent = 'Copied';
     setTimeout(() => (copyBtn.textContent = 'Copy'), 1200);
   });
+
+  renderNav('nav');
 </script>
 </body>
 </html>

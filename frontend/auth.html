@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snip — Log In / Sign Up</title>
+<style>
+  :root {
+    --ink: #10161f; --paper: #eef1f6; --panel: #ffffff;
+    --wire: #2f6fed; --wire-dim: #cddcfb; --line: #d8dde6;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans);
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 28px 28px; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 36px; width: 100%; max-width: 380px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--wire); margin-bottom: 8px; }
+  h1 { font-size: 22px; margin: 0 0 22px; letter-spacing: -0.02em; }
+
+  .tabs { display: flex; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .tab { flex: 1; text-align: center; padding: 9px; font-size: 13px; font-family: var(--mono); cursor: pointer; background: var(--paper); color: #55606f; }
+  .tab.active { background: var(--ink); color: #fff; }
+
+  label { display: block; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #55606f; margin-bottom: 6px; margin-top: 14px; }
+  input { width: 100%; font-family: var(--mono); font-size: 14px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 3px; background: var(--paper); color: var(--ink); }
+  input:focus { outline: 2px solid var(--wire); outline-offset: -1px; }
+
+  button.submit {
+    width: 100%; margin-top: 22px; font-family: var(--sans); font-weight: 600; font-size: 14px;
+    padding: 13px; border-radius: 3px; border: none; background: var(--ink); color: #fff; cursor: pointer;
+  }
+  button.submit:hover { background: var(--wire); }
+  button.submit:disabled { opacity: .5; cursor: not-allowed; }
+
+  .error { margin-top: 14px; font-size: 13px; color: #c1362f; display: none; }
+  .error.show { display: block; }
+
+  .back { display: block; text-align: center; margin-top: 18px; font-family: var(--mono); font-size: 12px; color: #8a94a3; text-decoration: none; }
+  .back:hover { color: var(--wire); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="eyebrow">snip</div>
+    <h1 id="heading">Welcome back</h1>
+
+    <div class="tabs">
+      <div class="tab active" id="loginTab">Log In</div>
+      <div class="tab" id="signupTab">Sign Up</div>
+    </div>
+
+    <form id="authForm">
+      <label for="email">Email</label>
+      <input type="email" id="email" required autocomplete="email" />
+
+      <label for="password">Password</label>
+      <input type="password" id="password" required autocomplete="current-password" minlength="8" />
+
+      <button class="submit" type="submit" id="submitBtn">Log In</button>
+      <div class="error" id="errorBox"></div>
+    </form>
+
+    <a class="back" href="/">&larr; back to shortener</a>
+  </div>
+
+<script src="/auth-nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+  let mode = 'login';
+
+  const loginTab = document.getElementById('loginTab');
+  const signupTab = document.getElementById('signupTab');
+  const heading = document.getElementById('heading');
+  const submitBtn = document.getElementById('submitBtn');
+  const passwordInput = document.getElementById('password');
+  const form = document.getElementById('authForm');
+  const errorBox = document.getElementById('errorBox');
+
+  function setMode(newMode) {
+    mode = newMode;
+    loginTab.classList.toggle('active', mode === 'login');
+    signupTab.classList.toggle('active', mode === 'signup');
+    heading.textContent = mode === 'login' ? 'Welcome back' : 'Create an account';
+    submitBtn.textContent = mode === 'login' ? 'Log In' : 'Sign Up';
+    passwordInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+    errorBox.classList.remove('show');
+  }
+
+  loginTab.addEventListener('click', () => setMode('login'));
+  signupTab.addEventListener('click', () => setMode('signup'));
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.classList.remove('show');
+    submitBtn.disabled = true;
+    submitBtn.textContent = mode === 'login' ? 'Logging in…' : 'Signing up…';
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: document.getElementById('email').value.trim(),
+          password: passwordInput.value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+
+      setSession(data.token, data.user);
+      window.location.href = '/my-links.html';
+    } catch (err) {
+      errorBox.textContent = err.message;
+      errorBox.classList.add('show');
+      submitBtn.disabled = false;
+      submitBtn.textContent = mode === 'login' ? 'Log In' : 'Sign Up';
+    }
+  });
+
+  if (getToken()) window.location.href = '/my-links.html';
+</script>
+</body>
+</html>
